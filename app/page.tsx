@@ -35,7 +35,7 @@ export default function Home() {
           <div className="flex flex-col justify-center max-w-xl">
             <h1 className="text-5xl font-bold mb-4 text-teal-300">AI-ARCH: Enhancing Building Design from the Ground Up</h1>
             <p className="text-lg mb-6">
-            We've developed an advanced tool that allows users to create architectural designs simply by writing a prompt. This innovative system interprets user input and generates detailed architectural plans, accommodating specific requirements and stylistic preferences.
+            We have developed an advanced tool that allows users to create architectural designs simply by writing a prompt. This innovative system interprets user input and generates detailed architectural plans, accommodating specific requirements and stylistic preferences.
             </p>
             <LoginButton>
               <Button className="bg-teal-600 hover:bg-teal-700 text-white py-2 px-4 rounded w-full">
