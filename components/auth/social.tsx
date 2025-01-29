@@ -3,6 +3,7 @@
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { Button } from "../ui/button";
+import { signIn } from "next-auth/react";
 
 
 export const Social = () => {
@@ -12,7 +13,7 @@ export const Social = () => {
         className="w-full"
         size={"lg"}
         variant={"outline"}
-        onClick={() => {}}
+        onClick={() => signIn("google")}
       >
         <FcGoogle className="h-5 w-5" />
       </Button>
@@ -20,7 +21,7 @@ export const Social = () => {
         className="w-full"
         size={"lg"}
         variant={"outline"}
-        onClick={() => {}}
+        onClick={() => signIn("github")}
       >
         <FaGithub className="h-5 w-5" />
       </Button>

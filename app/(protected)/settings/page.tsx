@@ -3,7 +3,6 @@ import { signOut } from "@/auth";
 
 const SettingsPage = async () => {
 
-
   const session = await auth();
   return ( 
     <div>
@@ -17,7 +16,7 @@ const SettingsPage = async () => {
       </button>
       </form>
     </div>
-   );
+  );
 }
- 
+
 export default SettingsPage;
