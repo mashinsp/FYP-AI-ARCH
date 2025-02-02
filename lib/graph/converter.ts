@@ -22,39 +22,42 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
+/**
+ * Convert graph data from the UI format to the model's expected format.
+ *
+ * Instead of filtering out nodes with label 'outside', we map them to 'front'
+ * so that edges involving these nodes are preserved.
+ */
 export function convertToModelFormat(graphData: GraphData) {
-  // Filter out the 'outside' node as it's not needed for the model
-  const filteredNodes = graphData.nodes.filter(node => node.label !== 'outside');
-  
-  // Create a mapping of original IDs to new indices
-  const idToIndex = new Map(
-    filteredNodes.map((node, index) => [node.id, index])
+  // Map any node with label "outside" to "front"
+  const mappedNodes = graphData.nodes.map((node) =>
+    node.label.toLowerCase() === 'outside'
+      ? { ...node, label: 'front' }
+      : node
   );
 
-  // Convert nodes to the format expected by the model: { "0": "bedroom", "1": "bathroom", ... }
+  // Create a mapping of original IDs to new (zero-based) indices
+  const idToIndex = new Map(
+    mappedNodes.map((node, index) => [node.id, index])
+  );
+
+  // Build the nodes object expected by the model
   const nodes: { [key: string]: string } = {};
-  filteredNodes.forEach((node, index) => {
-    // Convert node label to lowercase to match Python model's expected format
+  mappedNodes.forEach((node, index) => {
     nodes[index.toString()] = node.label.toLowerCase();
   });
 
-  // Convert edges to the format expected by the model: [[0, 1], [1, 2], ...]
-  // Filter out edges connected to 'outside' node and convert to zero-based indices
-  const edges = graphData.edges
-    .filter(edge => {
-      const fromNode = graphData.nodes.find(n => n.id === edge.from);
-      const toNode = graphData.nodes.find(n => n.id === edge.to);
-      return fromNode?.label !== 'outside' && toNode?.label !== 'outside';
-    })
-    .map(edge => {
-      const fromIndex = idToIndex.get(edge.from);
-      const toIndex = idToIndex.get(edge.to);
-      if (fromIndex === undefined || toIndex === undefined) {
-        console.error('Invalid edge mapping:', { edge, fromIndex, toIndex });
-        throw new Error('Invalid edge mapping');
-      }
-      return [fromIndex, toIndex];
-    });
+  // Convert each edge by mapping the original IDs to new indices.
+  // (No filtering is performed now, so edges involving former "outside" nodes will be included.)
+  const edges = graphData.edges.map((edge) => {
+    const fromIndex = idToIndex.get(edge.from);
+    const toIndex = idToIndex.get(edge.to);
+    if (fromIndex === undefined || toIndex === undefined) {
+      console.error('Invalid edge mapping:', { edge, fromIndex, toIndex });
+      throw new Error('Invalid edge mapping');
+    }
+    return [fromIndex, toIndex];
+  });
 
   const modelData = {
     nodes,
@@ -67,6 +70,5 @@ export function convertToModelFormat(graphData: GraphData) {
 
 export function convertFromModelFormat(modelOutput: any, originalGraph: GraphData) {
   // Implementation for converting model output back to graph format
-  // This will be implemented when needed for handling the model's response
   return modelOutput;
 }

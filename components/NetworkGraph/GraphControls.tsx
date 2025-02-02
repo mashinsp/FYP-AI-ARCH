@@ -12,7 +12,7 @@ interface GraphControlsProps {
   isGenerating: boolean;
 }
 
-// Hard-coded list of possible rooms
+// Removed "outside" from this list for consistency.
 const ROOM_TYPES = [
   'bedroom',
   'bathroom',
@@ -23,7 +23,6 @@ const ROOM_TYPES = [
   'dining',
   'study',
   'storage',
-  'outside',
 ];
 
 export const GraphControls: React.FC<GraphControlsProps> = ({
@@ -53,7 +52,7 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
               <button
                 key={type}
                 onClick={() => handleRoomClick(type)}
-                className="block w-full px-4 py-2 text-left hover:bg-gray-100"
+                className="block w-full px-4 py-2 text-left hover:bg-gray-100 capitalize"
               >
                 {type}
               </button>
