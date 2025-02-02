@@ -67,13 +67,13 @@ export default function NetworkGraph({
         addNode: false,
         editNode: false,
         // Add a callback for edge addition so that every added edge triggers an update
-        addEdge: (data, callback) => {
+        addEdge: (data: any, callback: any) => {
           callback(data);
           updateStateFromNetwork();
         },
         editEdge: false,
         deleteNode: true,
-        deleteEdge: (data, callback) => {
+        deleteEdge: (data: any, callback: any) => {
           callback(data);
           updateStateFromNetwork();
         },
