@@ -1,10 +1,11 @@
-"use client"
+"use client";
 
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoginSchema } from "@/schemas";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { CardWrapper } from "./card-wrapper";
 import {
@@ -33,20 +34,32 @@ const LoginForm = () => {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | undefined>("");
   const [success, setSuccess] = useState<string | undefined>("");
-   
-  const onSubmit = (values: z.infer<typeof LoginSchema>) => {
+  const router = useRouter();
 
+  const onSubmit = (values: z.infer<typeof LoginSchema>) => {
     setError("");
     setSuccess("");
 
     startTransition(() => {
       login(values)
-      .then((data) => {
-        setError(data.error);
-        setSuccess(data.success); 
-      });
+        .then((data) => {
+          if (!data) {
+            setError("No response from server.");
+            return;
+          }
+          if (data.error) {
+            setError(data.error);
+          } else if (data.success) {
+            setSuccess(data.success);
+            // Redirect to /architecture upon successful login
+            router.push("/architecture");
+          }
+        })
+        .catch((err) => {
+          setError(err.message || "Login failed");
+        });
     });
-  }
+  };
 
   return (
     <CardWrapper
@@ -73,7 +86,7 @@ const LoginForm = () => {
                       placeholder="example@example.com"
                     />
                   </FormControl>
-                  <FormMessage/>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -91,7 +104,7 @@ const LoginForm = () => {
                       placeholder="******"
                     />
                   </FormControl>
-                  <FormMessage/>
+                  <FormMessage />
                 </FormItem>
               )}
             />

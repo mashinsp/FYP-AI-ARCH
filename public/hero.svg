@@ -1,0 +1,300 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient for strokes/lines -->
+    <linearGradient id="techGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="1" />
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="1" />
+    </linearGradient>
+
+    <!-- Gradient for scanning line -->
+    <linearGradient id="scanLineGradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0" />
+      <stop offset="50%" stop-color="#fff" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#fff" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Pattern of dots for the background -->
+    <pattern id="gridDots" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#3b82f6" opacity="0.3" />
+    </pattern>
+
+    <!-- Glow filter for floating points -->
+    <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Dark background + dotted pattern -->
+  <rect width="800" height="600" fill="#0f172a" />
+  <rect width="800" height="600" fill="url(#gridDots)" />
+
+  <!-- Title for the blueprint -->
+  <text
+    x="110"
+    y="125"
+    fill="#3b82f6"
+    font-family="monospace"
+    font-size="18"
+    opacity="0.8"
+  >
+    Floor Plan Graph
+  </text>
+
+  <!-- Fill rectangle for floor area (no stroke) -->
+  <rect
+    x="100"
+    y="150"
+    width="500"
+    height="300"
+    fill="#1e293b"
+    stroke="none"
+  />
+
+  <!-- Outer thick walls (strokeWidth=10) -->
+  <rect
+    x="100"
+    y="150"
+    width="500"
+    height="300"
+    fill="none"
+    stroke="url(#techGradient)"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- INTERNAL WALLS (thick lines) -->
+  <!-- 1) Vertical line for hallway: x=200, from y=150..450 -->
+  <line
+    x1="200"
+    y1="150"
+    x2="200"
+    y2="450"
+    stroke="url(#techGradient)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- 2) Horizontal lines on the right side (making 3 stacked rooms) -->
+  <!-- Top horizontal: y=250, from x=200..600 -->
+  <line
+    x1="200"
+    y1="250"
+    x2="600"
+    y2="250"
+    stroke="url(#techGradient)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Middle horizontal: y=350, from x=200..600 -->
+  <line
+    x1="200"
+    y1="350"
+    x2="600"
+    y2="350"
+    stroke="url(#techGradient)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- 3) Horizontal line on the left side to split Living/Kitchen: y=300, from x=100..200 -->
+  <line
+    x1="100"
+    y1="300"
+    x2="200"
+    y2="300"
+    stroke="url(#techGradient)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- ROOM LABELS -->
+  <!-- Left top = Living; left bottom = Kitchen; Middle is Hall -->
+  <text x="120" y="220" fill="#3b82f6" font-family="monospace" font-size="14">
+    Living
+  </text>
+  <text x="120" y="370" fill="#3b82f6" font-family="monospace" font-size="14">
+    Kitchen
+  </text>
+  <text x="210" y="300" fill="#3b82f6" font-family="monospace" font-size="14">
+    Hall
+  </text>
+  <!-- Right top (y=150..250) => Bedroom1 -->
+  <text x="400" y="220" fill="#3b82f6" font-family="monospace" font-size="14">
+    Bedroom1
+  </text>
+  <!-- Right middle (y=250..350) => Bath -->
+  <text x="400" y="320" fill="#3b82f6" font-family="monospace" font-size="14">
+    Bath
+  </text>
+  <!-- Right bottom (y=350..450) => Bedroom2 -->
+  <text x="400" y="420" fill="#3b82f6" font-family="monospace" font-size="14">
+    Bedroom2
+  </text>
+
+  <!-- AI Analysis Points (one in each room) -->
+  <!-- Living -->
+  <circle cx="150" cy="220" r="5" fill="#3b82f6">
+    <animate attributeName="r" values="5;8;5" dur="2s" repeatCount="indefinite" />
+  </circle>
+  <!-- Kitchen -->
+  <circle cx="150" cy="370" r="5" fill="#3b82f6">
+    <animate attributeName="r" values="5;8;5" dur="2s" repeatCount="indefinite" begin="0.5s" />
+  </circle>
+  <!-- Hall -->
+  <circle cx="210" cy="300" r="5" fill="#3b82f6">
+    <animate attributeName="r" values="5;8;5" dur="2s" repeatCount="indefinite" begin="1s" />
+  </circle>
+  <!-- Bedroom1 -->
+  <circle cx="400" cy="200" r="5" fill="#3b82f6">
+    <animate attributeName="r" values="5;8;5" dur="2s" repeatCount="indefinite" begin="1.5s" />
+  </circle>
+  <!-- Bath -->
+  <circle cx="400" cy="300" r="5" fill="#3b82f6">
+    <animate attributeName="r" values="5;8;5" dur="2s" repeatCount="indefinite" begin="2s" />
+  </circle>
+  <!-- Bedroom2 -->
+  <circle cx="400" cy="400" r="5" fill="#3b82f6">
+    <animate attributeName="r" values="5;8;5" dur="2s" repeatCount="indefinite" begin="2.5s" />
+  </circle>
+
+  <!-- Scanning line: moves left-to-right across the entire house (x=100..600) -->
+  <rect
+    x="100"
+    y="150"
+    width="10"
+    height="300"
+    fill="url(#scanLineGradient)"
+    opacity="0.5"
+  >
+    <animate
+      attributeName="x"
+      values="100;600;100"
+      dur="4s"
+      repeatCount="indefinite"
+    />
+  </rect>
+
+  <!-- AI Analysis Box (top-right corner) -->
+  <g transform="translate(630, 100)" fill="none" stroke="#3b82f6" stroke-width="1">
+    <rect width="150" height="100" rx="10" />
+    <text
+      x="75"
+      y="30"
+      fill="#3b82f6"
+      text-anchor="middle"
+      font-family="monospace"
+    >
+      AI ANALYSIS
+    </text>
+    <!-- Animated status bars -->
+    <g transform="translate(20, 50)">
+      <rect width="110" height="4" rx="2">
+        <animate
+          attributeName="opacity"
+          values="0.3;1;0.3"
+          dur="2s"
+          repeatCount="indefinite"
+        />
+      </rect>
+      <rect y="15" width="110" height="4" rx="2">
+        <animate
+          attributeName="opacity"
+          values="0.3;1;0.3"
+          dur="2s"
+          repeatCount="indefinite"
+          begin="0.5s"
+        />
+      </rect>
+      <rect y="30" width="110" height="4" rx="2">
+        <animate
+          attributeName="opacity"
+          values="0.3;1;0.3"
+          dur="2s"
+          repeatCount="indefinite"
+          begin="1s"
+        />
+      </rect>
+    </g>
+  </g>
+
+  <!-- Measurement / dimension lines around the floor plan -->
+  <g stroke="#3b82f6" opacity="0.5">
+    <!-- Horizontal line below the house (y=450 + offset=20 => y=470) -->
+    <line
+      x1="100"
+      y1="470"
+      x2="600"
+      y2="470"
+      stroke-dasharray="5 5"
+    />
+    <!-- Vertical line to the left (x=80, from y=150..450) -->
+    <line
+      x1="80"
+      y1="150"
+      x2="80"
+      y2="450"
+      stroke-dasharray="5 5"
+    />
+    <!-- Arrow markers -->
+    <path d="M95 465l10 10-10 10" fill="none" />
+    <path d="M605 465l-10 10 10 10" fill="none" />
+  </g>
+
+  <!-- NETWORK CONNECTION LINES: connect circles with curved paths -->
+  <g stroke="url(#techGradient)" stroke-width="2" fill="none" opacity="0.4">
+    <!-- Living -> Hall -->
+    <path d="M150,220 Q 180,260 210,300">
+      <animate attributeName="stroke-dashoffset" values="0;100" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <!-- Hall -> Bedroom1 -->
+    <path d="M210,300 Q 305,250 400,200">
+      <animate attributeName="stroke-dashoffset" values="0;100" dur="2s" repeatCount="indefinite" begin="0.4s"/>
+    </path>
+    <!-- Hall -> Bath -->
+    <path d="M210,300 Q 305,300 400,300">
+      <animate attributeName="stroke-dashoffset" values="0;100" dur="2s" repeatCount="indefinite" begin="0.8s"/>
+    </path>
+    <!-- Bath -> Bedroom2 -->
+    <path d="M400,300 Q 400,350 400,400">
+      <animate attributeName="stroke-dashoffset" values="0;100" dur="2s" repeatCount="indefinite" begin="1.2s"/>
+    </path>
+    <!-- Living -> Kitchen -->
+    <path d="M150,220 Q 150,295 150,370">
+      <animate attributeName="stroke-dashoffset" values="0;100" dur="2s" repeatCount="indefinite" begin="1.6s"/>
+    </path>
+    <!-- Kitchen -> Hall -->
+    <path d="M150,370 Q 180,335 210,300">
+      <animate attributeName="stroke-dashoffset" values="0;100" dur="2s" repeatCount="indefinite" begin="2s"/>
+    </path>
+    <!-- Living -> Bedroom2 (existing optional line) -->
+    <path d="M150,220 Q 210,300 400,400">
+      <animate attributeName="stroke-dashoffset" values="0;100" dur="2s" repeatCount="indefinite" begin="2.4s"/>
+    </path>
+  </g>
+
+  <!-- Floating elements with glow -->
+  <g filter="url(#glowFilter)" fill="#3b82f6">
+    <circle cx="50" cy="50" r="3">
+      <animate
+        attributeName="cy"
+        values="50;60;50"
+        dur="3s"
+        repeatCount="indefinite"
+      />
+    </circle>
+    <circle cx="750" cy="550" r="3">
+      <animate
+        attributeName="cy"
+        values="550;540;550"
+        dur="3s"
+        repeatCount="indefinite"
+      />
+    </circle>
+  </g>
+</svg>

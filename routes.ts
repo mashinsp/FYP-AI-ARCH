@@ -1,5 +1,8 @@
 export const publicRoutes = [
-  "/"
+  "/",
+  "/features",
+  "/contact",
+  "/about"
 ]
 
 export const authRoutes = [

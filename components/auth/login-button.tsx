@@ -1,36 +1,66 @@
 'use client';
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 interface LoginButtonProps {
-    children: React.ReactNode,
-    mode? : "modal" | "redirect",
-    asChild?: boolean 
+  children: React.ReactNode;
+  mode?: "modal" | "redirect";
+  asChild?: boolean;
+  onClick?: () => void;
 }
 
 export const LoginButton = ({
-    children,
-    mode = "redirect",
-    asChild
+  children,
+  mode = "redirect",
+  asChild,
+  onClick: customOnClick,
 }: LoginButtonProps) => {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-    const router = useRouter();
-    
-    const onClick = () => {
-        router.push("/auth/login");
+  const onClick = () => {
+    setLoading(true);
+    if (customOnClick) {
+      customOnClick();
+    } else {
+      router.push("/auth/login");
     }
+  };
 
-    if(mode == 'modal'){
-        return(
-            <span>
-                TODO: Impliment modal
-            </span>
-        )
-    }
+  if (mode === "modal") {
+    return (
+      <span>
+        TODO: Implement modal
+      </span>
+    );
+  }
 
-    return(
-        <span onClick={onClick} className="cursor-pointer flex">
-            {children}
-        </span>
-    )
-}
+  return (
+    <span onClick={onClick} className="cursor-pointer flex items-center">
+      {loading && (
+        <svg
+          className="animate-spin h-5 w-5 mr-2 text-white"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          ></circle>
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          ></path>
+        </svg>
+      )}
+      {children}
+    </span>
+  );
+};
