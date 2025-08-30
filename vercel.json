@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "api/python/generate.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  },
+  "builds": [
+    {
+      "src": "api/python/generate.py",
+      "use": "@vercel/python"
+    }
+  ]
+}

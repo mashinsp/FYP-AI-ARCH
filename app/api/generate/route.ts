@@ -1,29 +1,36 @@
-// app/api/generate/route.ts
 import { NextResponse } from 'next/server';
-import { PythonBridge } from '@/python/bridge'; 
 import { validateGraphData } from '@/lib/utils/validation';
 
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    // Validate data if needed
     const validated = validateGraphData(data);
 
-    // Now call Python from your server environment
-    const bridge = PythonBridge.getInstance();
-    // We'll do a final, single result (no partial callback).
-    const result = await bridge.generateLayout(validated);
+    // Call the Python function on Vercel
+    const pythonFunctionUrl = process.env.NODE_ENV === 'production' 
+      ? `${process.env.VERCEL_URL}/api/python/generate`
+      : 'http://localhost:3000/api/python/generate';
 
-    if (!result.success) {
-      return NextResponse.json({ error: result.error ?? 'Generation failed' }, { status: 500 });
+    const response = await fetch(pythonFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(validated),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Python function error: ${response.statusText}`);
     }
 
-    return NextResponse.json({
-      layouts: result.layouts,
-      logs: result.logs,
-    });
+    const result = await response.json();
+    return NextResponse.json(result);
+
   } catch (error) {
-    console.error('API Error in /api/generate:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    console.error('API Error:', error);
+    return NextResponse.json({ 
+      error: String(error),
+      fallback: "Using fallback mode" 
+    }, { status: 500 });
   }
 }
