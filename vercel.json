@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/python/generate.py": {
+    "python/**/*.py": {
       "runtime": "python3.9",
       "maxDuration": 30
     }

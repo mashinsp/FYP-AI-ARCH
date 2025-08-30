@@ -31,10 +31,38 @@ export class PythonBridge {
     return PythonBridge.instance;
   }
 
+  // Add Python path detection method
+  private getPythonPath(): string {
+    // Check if we're in Vercel environment
+    if (process.env.VERCEL === '1') {
+      this.log('Detected Vercel environment, using python3', 'debug');
+      return 'python3';
+    }
+    
+    // Check if we're in AWS Lambda environment
+    if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      this.log('Detected AWS Lambda environment, using python3', 'debug');
+      return 'python3';
+    }
+
+    // For local development, try to detect available Python
+    try {
+      const { execSync } = require('child_process');
+      execSync('python3 --version', { stdio: 'ignore' });
+      this.log('Found python3, using python3', 'debug');
+      return 'python3';
+    } catch (error) {
+      this.log('python3 not found, falling back to python', 'debug');
+      return 'python';
+    }
+  }
+
   private getPythonOptions(scriptName: string): PythonShellOptions {
+    const pythonPath = this.getPythonPath();
+    
     const options = {
       mode: 'text' as const,
-      pythonPath: PYTHON_CONFIG.PYTHON_PATH,
+      pythonPath: pythonPath, // Use dynamic Python path
       pythonOptions: ['-u'],
       scriptPath: PYTHON_CONFIG.PYTHON_DIR,
       env: {
@@ -43,6 +71,7 @@ export class PythonBridge {
         MODEL_PATH: PYTHON_CONFIG.MODEL_PATH,
       },
     };
+    
     this.log(`Python options for ${scriptName}: ${JSON.stringify(options, null, 2)}`, 'debug');
     return options;
   }
