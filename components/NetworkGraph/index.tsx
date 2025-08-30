@@ -9,7 +9,7 @@ import { allTemplates } from '@/lib/graph/templates';
 
 const ROOM_TYPES = [
   'bedroom', 'bathroom', 'living', 'kitchen', 'balcony',
-  'entrance', 'dining', 'study', 'storage'  // "outside" removed for consistency
+  'entrance', 'dining', 'study', 'storage'
 ];
 
 const roomToColor: Record<string, string> = {
@@ -37,16 +37,13 @@ export default function NetworkGraph({
 }: NetworkGraphProps) {
   const networkRef = useRef<HTMLDivElement>(null);
   const networkInstance = useRef<Network | null>(null);
-  // Hold the DataSets in separate refs so we can always query the latest data
   const nodesRef = useRef(new DataSet<any>(allTemplates[selectedTemplate].nodes));
   const edgesRef = useRef(new DataSet<any>(allTemplates[selectedTemplate].edges));
 
   const [menuOpen, setMenuOpen] = useState(false);
-  // (We still keep this state for display, but we won’t rely on it for conversion)
   const [graphData, setGraphData] = useState<GraphData>(allTemplates[selectedTemplate]);
 
-  // This function updates our local state from our DataSets.
-  // (It also logs the current nodes and edges.)
+  // ✅ FIXED: Use DataSets directly instead of accessing network.body
   const updateStateFromNetwork = useCallback(() => {
     const nodes = nodesRef.current.get();
     const edges = edgesRef.current.get();
@@ -66,13 +63,15 @@ export default function NetworkGraph({
         enabled: true,
         addNode: false,
         editNode: false,
-        // Add a callback for edge addition so that every added edge triggers an update
         addEdge: (data: any, callback: any) => {
           callback(data);
           updateStateFromNetwork();
         },
         editEdge: false,
-        deleteNode: true,
+        deleteNode: (data: any, callback: any) => {
+          callback(data);
+          updateStateFromNetwork();
+        },
         deleteEdge: (data: any, callback: any) => {
           callback(data);
           updateStateFromNetwork();
@@ -80,14 +79,12 @@ export default function NetworkGraph({
       },
     };
 
-    // Create network using our DataSets for nodes and edges.
     networkInstance.current = new Network(container, {
       nodes: nodesRef.current,
       edges: edgesRef.current,
     }, options);
   }, [updateStateFromNetwork]);
 
-  // When the selected template changes, update the DataSets and our state.
   useEffect(() => {
     const newTemplateData = allTemplates[selectedTemplate];
     nodesRef.current.clear();
@@ -140,8 +137,6 @@ export default function NetworkGraph({
     link.click();
   }, []);
 
-  // Instead of using the (possibly stale) graphData state,
-  // retrieve the latest nodes and edges directly from our DataSets.
   const handleGenerate = useCallback(async () => {
     const latestGraphData = {
       nodes: nodesRef.current.get(),
