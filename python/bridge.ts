@@ -4,6 +4,9 @@ import { PYTHON_CONFIG } from './config';
 import fs from 'fs-extra';
 import path from 'path';
 
+// Check if we should use remote Railway backend
+const USE_REMOTE_BACKEND = process.env.RAILWAY_BACKEND_URL || process.env.VERCEL === '1';
+
 interface GenerationResult {
   success: boolean;
   layouts: string[];
@@ -57,6 +60,52 @@ export class PythonBridge {
     }
   }
 
+  private async generateLayoutRemote(
+    graphData: any,
+    backendUrl: string
+  ): Promise<GenerationResult> {
+    try {
+      this.log(`Calling remote backend at ${backendUrl}`, 'info');
+      
+      const response = await fetch(`${backendUrl}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(graphData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.log(`Remote backend error: ${response.status} - ${errorText}`, 'error');
+        return {
+          success: false,
+          layouts: [],
+          error: `Remote backend error: ${response.status}`,
+          logs: this.debugLogs,
+        };
+      }
+
+      const result = await response.json();
+      this.log(`Remote backend returned ${result.layouts?.length || 0} layouts`, 'info');
+      
+      return {
+        success: result.success,
+        layouts: result.layouts || [],
+        error: result.error,
+        logs: [...this.debugLogs, ...(result.logs || [])],
+      };
+    } catch (error) {
+      this.log(`Remote backend error: ${error}`, 'error');
+      return {
+        success: false,
+        layouts: [],
+        error: `Remote backend unreachable: ${error instanceof Error ? error.message : String(error)}`,
+        logs: this.debugLogs,
+      };
+    }
+  }
+
   async generateLayout(
     graphData: any,
     onPartialLayout?: PartialLayoutCallback
@@ -64,6 +113,11 @@ export class PythonBridge {
     try {
       this.log('Starting layout generation');
       this.log(`Input graph data: ${JSON.stringify(graphData, null, 2)}`, 'debug');
+
+      // Use remote backend if configured (e.g., Railway)
+      if (USE_REMOTE_BACKEND && process.env.RAILWAY_BACKEND_URL) {
+        return this.generateLayoutRemote(graphData, process.env.RAILWAY_BACKEND_URL);
+      }
 
       return new Promise((resolve) => {
         const results: string[] = [];
