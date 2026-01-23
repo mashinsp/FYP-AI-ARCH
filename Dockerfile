@@ -1,5 +1,5 @@
 # Multi-stage build: Python dependencies + Node.js app
-FROM node:18-bullseye as base
+FROM node:20-bullseye as base
 
 # Install system dependencies for OpenCV and other Python libraries
 RUN apt-get update && apt-get install -y \
@@ -22,6 +22,9 @@ COPY next.config.mjs ./
 COPY postcss.config.mjs ./
 COPY tailwind.config.ts ./
 COPY requirements.txt ./
+
+# Copy prisma schema (needed for prisma generate during npm install)
+COPY prisma ./prisma
 
 # Install Node dependencies
 # Use --legacy-peer-deps to handle next-auth compatibility with Next.js 16
