@@ -24,7 +24,8 @@ COPY tailwind.config.ts ./
 COPY requirements.txt ./
 
 # Install Node dependencies
-RUN npm ci
+# Use --legacy-peer-deps to handle next-auth compatibility with Next.js 16
+RUN npm ci --legacy-peer-deps
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir -r requirements.txt
