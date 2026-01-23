@@ -1,5 +1,5 @@
 // python/bridge.ts
-import { PythonShell, Options as PythonShellOptions } from 'python-shell';
+import { execFile } from 'child_process';
 import { PYTHON_CONFIG } from './config';
 import fs from 'fs-extra';
 import path from 'path';
@@ -17,7 +17,7 @@ export class PythonBridge {
   private static instance: PythonBridge;
   private debugLogs: string[] = [];
 
-  private log(message: string, type: 'info' | 'error' | 'debug' = 'info') {
+  private log(message: string, type: 'info' | 'error' | 'debug' | 'warn' = 'info') {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
     this.debugLogs.push(logMessage);
@@ -57,25 +57,6 @@ export class PythonBridge {
     }
   }
 
-  private getPythonOptions(scriptName: string): PythonShellOptions {
-    const pythonPath = this.getPythonPath();
-    
-    const options = {
-      mode: 'text' as const,
-      pythonPath: pythonPath, // Use dynamic Python path
-      pythonOptions: ['-u'],
-      scriptPath: PYTHON_CONFIG.PYTHON_DIR,
-      env: {
-        ...PYTHON_CONFIG.ENV,
-        PYTHONPATH: PYTHON_CONFIG.PYTHON_DIR,
-        MODEL_PATH: PYTHON_CONFIG.MODEL_PATH,
-      },
-    };
-    
-    this.log(`Python options for ${scriptName}: ${JSON.stringify(options, null, 2)}`, 'debug');
-    return options;
-  }
-
   async generateLayout(
     graphData: any,
     onPartialLayout?: PartialLayoutCallback
@@ -85,93 +66,113 @@ export class PythonBridge {
       this.log(`Input graph data: ${JSON.stringify(graphData, null, 2)}`, 'debug');
 
       return new Promise((resolve) => {
-        const pyshell = new PythonShell(
-          PYTHON_CONFIG.SCRIPTS.INFER,
-          this.getPythonOptions(PYTHON_CONFIG.SCRIPTS.INFER)
-        );
-
         const results: string[] = [];
         const errors: string[] = [];
+        const MAX_LAYOUTS = 5;
 
-        this.log(`Sending graph data to Python script`, 'debug');
-        pyshell.send(JSON.stringify(graphData));
+        this.log(`Running Python script with args`, 'debug');
+        const pythonPath = this.getPythonPath();
+        const scriptPath = path.join(PYTHON_CONFIG.PYTHON_DIR, PYTHON_CONFIG.SCRIPTS.INFER);
+        const graphArg = JSON.stringify(graphData);
 
-        pyshell.on('message', (message) => {
-          this.log(`Python STDOUT: ${message}`, 'debug');
+        this.log(`Python path: ${pythonPath}`, 'debug');
+        this.log(`Script path: ${scriptPath}`, 'debug');
+        this.log(`Graph arg length: ${graphArg.length}`, 'debug');
 
-          // Check if the message contains an SVG chunk.
-          if (message.includes('<svg') && message.includes('</svg>')) {
-            const svgStart = message.indexOf('<svg');
-            const svgEnd = message.indexOf('</svg>') + 6;
-            const svg = message.substring(svgStart, svgEnd);
+        // Set a timeout to prevent hanging forever
+        const timeout = setTimeout(() => {
+          this.log(`Python script timed out after 120 seconds`, 'error');
+          resolve({
+            success: false,
+            layouts: [],
+            error: 'Python script execution timed out (120s)',
+            logs: this.debugLogs,
+          });
+        }, 120000);
 
-            const isValidSvg =
-              svg.startsWith('<svg') &&
-              svg.endsWith('</svg>') &&
-              svg.includes('width="') &&
-              svg.includes('height="') &&
-              svg.includes('xmlns="http://www.w3.org/2000/svg"');
+        // Use Node's native execFile instead of PythonShell for better control
+        const child = execFile(
+          pythonPath,
+          [scriptPath, graphArg],
+          {
+            cwd: PYTHON_CONFIG.PYTHON_DIR,
+            env: {
+              ...process.env,
+              PYTHONIOENCODING: 'utf-8',
+              PYTHONUNBUFFERED: '1',
+              PYTHONPATH: PYTHON_CONFIG.PYTHON_DIR,
+              MODEL_PATH: PYTHON_CONFIG.MODEL_PATH,
+            },
+            maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large SVGs
+            timeout: 120000, // 120 second timeout
+          },
+          (error, stdout, stderr) => {
+            clearTimeout(timeout);
 
-            if (isValidSvg) {
-              this.log('Detected valid SVG output from Python.', 'debug');
-              results.push(svg);
-
-              // Invoke the partial callback so the client can update UI immediately.
-              if (onPartialLayout) {
-                const layoutIndex = results.length - 1;
-                onPartialLayout(svg, layoutIndex);
-              }
-            } else {
-              const errMsg = `Invalid SVG structure: ${svg}`;
-              this.log(errMsg, 'error');
-              errors.push(errMsg);
+            if (stderr) {
+              this.log(`Python STDERR: ${stderr}`, 'debug');
             }
-          }
-        });
 
-        pyshell.on('stderr', (stderr) => {
-          this.log(`Python STDERR: ${stderr}`, 'error');
-          errors.push(stderr);
-        });
-
-        pyshell.end((err) => {
-          if (err) {
-            this.log(`PythonShell error: ${err}`, 'error');
-            resolve({
-              success: false,
-              layouts: [],
-              error: err.message,
-              logs: this.debugLogs,
-            });
-            return;
-          }
-
-          if (results.length === 0) {
-            if (errors.length > 0) {
-              this.log('Generation failed with errors', 'error');
+            if (error) {
+              this.log(`execFile error: ${error.message}`, 'error');
+              if (stderr) {
+                this.log(`Stderr output: ${stderr}`, 'error');
+              }
               resolve({
                 success: false,
                 layouts: [],
-                error: errors.join('\n'),
+                error: `Python execution failed: ${error.message}`,
                 logs: this.debugLogs,
               });
-            } else {
-              this.log('No layouts generated, no errors occurred', 'info');
-              resolve({
-                success: true,
-                layouts: [],
-                logs: this.debugLogs,
+              return;
+            }
+
+            // Parse stdout for SVG outputs
+            const lines = stdout.split('\n');
+            this.log(`Received ${lines.length} lines from Python`, 'debug');
+
+            // Join all lines and look for SVG blocks marked with <stop>
+            let fullOutput = lines.join('\n');
+            let currentIndex = 0;
+
+            while (true) {
+              const stopIndex = fullOutput.indexOf('<stop>', currentIndex);
+              if (stopIndex === -1) break;
+
+              const svgStart = fullOutput.indexOf('<svg', stopIndex);
+              const svgEnd = fullOutput.indexOf('</svg>', svgStart);
+
+              if (svgStart >= 0 && svgEnd >= 0) {
+                const svg = fullOutput.substring(svgStart, svgEnd + 6);
+                const isValidSvg = svg.startsWith('<svg') && svg.includes('xmlns="http://www.w3.org/2000/svg"');
+
+                if (isValidSvg) {
+                  if (results.length < MAX_LAYOUTS) {
+                    results.push(svg);
+                    if (onPartialLayout) onPartialLayout(svg, results.length - 1);
+                    this.log(`Captured SVG layout #${results.length}, length=${svg.length}`, 'info');
+                  }
+                  currentIndex = svgEnd + 6;
+                } else {
+                  currentIndex = svgStart + 4;
+                }
+              } else {
+                break;
+              }
+            }
+
+            if (results.length === 0) {
+              this.log(`No SVGs found in output`, 'warn');
+              // Debug: show what we got
+              lines.forEach((line, idx) => {
+                this.log(`Line ${idx}: ${line.substring(0, 100)}...`, 'debug');
               });
             }
-          } else {
-            this.log(`Successfully generated ${results.length} layouts`, 'info');
-            resolve({
-              success: true,
-              layouts: results,
-              logs: this.debugLogs,
-            });
+
+            this.log(`Python run completed, captured ${results.length} layouts`, 'info');
+            resolve({ success: true, layouts: results, logs: this.debugLogs });
           }
-        });
+        );
       });
     } catch (error) {
       this.log(`Generation error: ${error}`, 'error');

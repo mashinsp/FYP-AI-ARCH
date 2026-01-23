@@ -27,12 +27,25 @@ import networkx as nx
 # import pycocotools.mask as mask_utils
 import glob
 from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageFont, ImageColor
-import cv2
+try:
+    import cv2
+    cv2.setNumThreads(0)
+    HAS_CV2 = True
+except ImportError:
+    cv2 = None
+    HAS_CV2 = False
+
+try:
+    from scipy import ndimage
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+    ndimage = None
+
 from torchvision.utils import save_image
 import copy
 import random
 import webcolors
-cv2.setNumThreads(0)
 EXP_ID = random.randint(0, 1000000)
 
 ROOM_CLASS = {"living_room": 1, "kitchen": 2, "bedroom": 3, "bathroom": 4, "balcony": 5, "entrance": 6, "dining room": 7, "study room": 8,
@@ -72,17 +85,38 @@ def remove_multiple_components(masks):
         m_cv[m_cv>0] = 255.0
         m_cv[m_cv<0] = 0.0
         m_cv = m_cv.astype('uint8')
-        ret,thresh = cv2.threshold(m_cv, 127, 255 , 0)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        if len(contours) > 1:  
-            cnt_m = np.zeros_like(m_cv)
-            c = max(contours, key=cv2.contourArea)
-            cv2.drawContours(cnt_m, [c], 0, (255, 255, 255), -1)
-            cnt_m[cnt_m>0] = 1.0
-            cnt_m[cnt_m<0] = -1.0
-            new_masks.append(cnt_m)
-            drops += 1.0
+        
+        if HAS_CV2:
+            ret,thresh = cv2.threshold(m_cv, 127, 255 , 0)
+            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            if len(contours) > 1:  
+                cnt_m = np.zeros_like(m_cv)
+                c = max(contours, key=cv2.contourArea)
+                cv2.drawContours(cnt_m, [c], 0, (255, 255, 255), -1)
+                cnt_m[cnt_m>0] = 1.0
+                cnt_m[cnt_m<0] = -1.0
+                new_masks.append(cnt_m)
+                drops += 1.0
+            else:
+                new_masks.append(mk)
+        elif HAS_SCIPY:
+            # Use scipy for component labeling when cv2 is not available
+            binary_mask = (m_cv > 127).astype('uint8')
+            labeled, num_components = ndimage.label(binary_mask)
+            
+            if num_components > 1:
+                # Find the largest component
+                component_sizes = np.bincount(labeled.ravel())
+                largest_component = np.argmax(component_sizes[1:]) + 1
+                cnt_m = np.zeros_like(m_cv, dtype='float32')
+                cnt_m[labeled == largest_component] = 1.0
+                cnt_m[labeled != largest_component] = -1.0
+                new_masks.append(cnt_m)
+                drops += 1.0
+            else:
+                new_masks.append(mk)
         else:
+            # Fallback: just keep the mask as is
             new_masks.append(mk)
     return new_masks, drops
 
@@ -93,11 +127,21 @@ def check_validity(masks):
         m_cv[m_cv>0] = 255.0
         m_cv[m_cv<0] = 0.0
         m_cv = m_cv.astype('uint8')
-        ret,thresh = cv2.threshold(m_cv, 127, 255 , 0)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        if len(contours) > 1:  
-            is_broken = True
-            break
+        
+        if HAS_CV2:
+            ret,thresh = cv2.threshold(m_cv, 127, 255 , 0)
+            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            if len(contours) > 1:  
+                is_broken = True
+                break
+        elif HAS_SCIPY:
+            # Use scipy for component labeling when cv2 is not available
+            binary_mask = (m_cv > 127).astype('uint8')
+            labeled, num_components = ndimage.label(binary_mask)
+            if num_components > 1:
+                is_broken = True
+                break
+        # If neither cv2 nor scipy available, assume valid
     return is_broken
 
 def combine_images(samples_batch, nodes_batch, edges_batch, nd_to_sample, ed_to_sample):

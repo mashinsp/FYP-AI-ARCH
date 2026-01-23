@@ -6,13 +6,27 @@ import sys
 import random
 from PIL import Image, ImageDraw, ImageFont
 from collections import defaultdict
-# import matplotlib.pyplot as plt
-# import networkx as nx
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for headless environments
+import matplotlib.pyplot as plt
+import networkx as nx
 import glob
-import cv2
+try:
+    import cv2
+    HAS_CV2 = True
+except ImportError:
+    cv2 = None
+    HAS_CV2 = False
 import webcolors
 import time
 import svgwrite
+
+try:
+    from scipy import ndimage
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+    ndimage = None
 
 ROOM_CLASS = {"living_room": 1, "kitchen": 2, "bedroom": 3, "bathroom": 4, "balcony": 5, "entrance": 6, "dining room": 7, "study room": 8,
               "storage": 10 , "front door": 15, "unknown": 16, "interior_door": 17}
@@ -170,21 +184,62 @@ def _draw_polygon(dwg, contours, color, with_stroke=True):
     return
 
 def draw_masks(masks, real_nodes, im_size=256):
+    """
+    Generate SVG floor plan from masks.
+    Falls back to simple representation if cv2 is unavailable.
+    """
+    import sys
+    print(f"DEBUG: draw_masks called with {len(masks)} masks, HAS_CV2={HAS_CV2}", file=sys.stderr, flush=True)
     
     # process polygons
     polygons = []
-    for m, nd in zip(masks, real_nodes):
+    for i, (m, nd) in enumerate(zip(masks, real_nodes)):
+        print(f"DEBUG: Processing mask {i}, shape={m.shape}, room_id={nd}", file=sys.stderr, flush=True)
         # resize map
         m[m>0] = 255
         m[m<0] = 0
-        m_lg = cv2.resize(m, (im_size, im_size), interpolation = cv2.INTER_NEAREST) 
-
-        # extract contour
-        m_cv = m_lg[:, :, np.newaxis].astype('uint8')
-        ret, thresh = cv2.threshold(m_cv, 127, 255, 0)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        contours = [c for c in contours if len(c) > 0]
-        polygons.append(contours)
+        
+        if HAS_CV2:
+            print(f"DEBUG: Using cv2 for mask {i}", file=sys.stderr, flush=True)
+            m_lg = cv2.resize(m, (im_size, im_size), interpolation = cv2.INTER_NEAREST) 
+            # extract contour
+            m_cv = m_lg[:, :, np.newaxis].astype('uint8')
+            ret, thresh = cv2.threshold(m_cv, 127, 255, 0)
+            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            contours = [c for c in contours if len(c) > 0]
+            polygons.append(contours)
+        else:
+            print(f"DEBUG: Using PIL+scipy fallback for mask {i}", file=sys.stderr, flush=True)
+            # Use PIL to resize when cv2 is not available
+            from PIL import Image as PILImage
+            m_uint8 = m.astype('uint8')
+            m_pil = PILImage.fromarray(m_uint8)
+            m_lg = np.array(m_pil.resize((im_size, im_size), PILImage.NEAREST))
+            
+            # Simple contour extraction without scipy
+            # Just find non-zero regions and create bounding boxes as simple rectangles
+            binary_mask = (m_lg > 127).astype('uint8')
+            
+            # Find bounding box of non-zero region
+            rows = np.any(binary_mask, axis=1)
+            cols = np.any(binary_mask, axis=0)
+            if np.any(rows) and np.any(cols):
+                ymin, ymax = np.where(rows)[0][[0, -1]]
+                xmin, xmax = np.where(cols)[0][[0, -1]]
+                
+                # Create simple rectangle contour
+                rect_contour = np.array([
+                    [[xmin, ymin]],
+                    [[xmax, ymin]],
+                    [[xmax, ymax]],
+                    [[xmin, ymax]]
+                ], dtype=np.int32)
+                polygons.append([rect_contour])
+            else:
+                polygons.append([])
+    
+    print(f"DEBUG: Generated {len(polygons)} polygons", file=sys.stderr, flush=True)
+    
     polygons = _snap(polygons)
 
     # draw rooms polygons
@@ -195,18 +250,28 @@ def draw_masks(masks, real_nodes, im_size=256):
         color = ID_COLOR[nd]
         r, g, b = webcolors.hex_to_rgb(color)
         if nd not in [15, 17]:
-            new_contours = _fix(contours) 
-            new_contours = [c for c in new_contours if cv2.contourArea(c) >= 4] # filter out small contours
-            _draw_polygon(dwg, new_contours, color)
-            rooms.append(new_contours)
+            if HAS_CV2 and contours:
+                new_contours = _fix(contours) 
+                new_contours = [c for c in new_contours if cv2.contourArea(c) >= 4]
+            else:
+                # Use contours as-is if cv2 not available
+                new_contours = contours
+            if new_contours:
+                _draw_polygon(dwg, new_contours, color)
+            rooms.append(new_contours if new_contours else [])
 
     # draw doors
     for nd, contours in zip(real_nodes, polygons):
         # pick color
         color = ID_COLOR[nd]
         if nd in [15, 17] and len(contours) > 0:
-            contour = _assign_door([contours[0]], rooms)
-            _draw_polygon(dwg, [contour], color, with_stroke=False)
+            if HAS_CV2:
+                contour = _assign_door([contours[0]], rooms)
+                _draw_polygon(dwg, [contour], color, with_stroke=False)
+            else:
+                _draw_polygon(dwg, contours, color, with_stroke=False)
+    
+    print(f"DEBUG: SVG drawing complete, returning string", file=sys.stderr, flush=True)
     return dwg.tostring()
 
 ## OLD CODE -- BACKUP

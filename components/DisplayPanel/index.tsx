@@ -40,7 +40,9 @@ export default function DisplayPanel({
   const displayRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   useEffect(() => {
+    console.log('DisplayPanel useEffect: layouts changed', layouts.length);
     layouts.forEach((svgContent, index) => {
+      console.log(`Layout ${index}: ${svgContent?.length || 0} chars`);
       if (displayRefs.current[index] && svgContent) {
         try {
           const formattedSVG = reformatSVG(svgContent);

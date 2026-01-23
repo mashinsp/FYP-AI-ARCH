@@ -1,36 +1,31 @@
 import { NextResponse } from 'next/server';
 import { validateGraphData } from '@/lib/utils/validation';
+import { PythonBridge } from '@/python/bridge';
 
 export async function POST(request: Request) {
   try {
     const data = await request.json();
     const validated = validateGraphData(data);
 
-    // Call the Python function on Vercel
-    const pythonFunctionUrl = process.env.NODE_ENV === 'production' 
-      ? `${process.env.VERCEL_URL}/api/python/generate`
-      : 'http://localhost:3000/api/python/generate';
+    // Use the Python bridge directly to generate the layout
+    const pythonBridge = PythonBridge.getInstance();
+    const result = await pythonBridge.generateLayout(validated);
 
-    const response = await fetch(pythonFunctionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(validated),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Python function error: ${response.statusText}`);
+    if (!result.success) {
+      throw new Error(result.error || 'Layout generation failed');
     }
 
-    const result = await response.json();
-    return NextResponse.json(result);
+    // Ensure we only return up to 5 layouts and include logs for debugging
+    const layouts = Array.isArray(result.layouts) ? result.layouts.slice(0, 5) : [];
+    const payload = { success: true, layouts, logs: result.logs };
+    console.log('Returning payload for /api/generate:', { layoutsCount: layouts.length });
+    return NextResponse.json(payload);
 
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ 
       error: String(error),
-      fallback: "Using fallback mode" 
+      success: false
     }, { status: 500 });
   }
 }

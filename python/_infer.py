@@ -1,16 +1,37 @@
 import numpy as np
-from viz import draw_graph, draw_masks
+import sys
+import os
+
+# Flush output immediately for debugging
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
+sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 1)
+
+print("DEBUG: Starting _infer.py import phase", file=sys.stderr, flush=True)
+
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for headless environments
 import matplotlib.pyplot as plt
+
+print("DEBUG: matplotlib imported", file=sys.stderr, flush=True)
+
 import torch
+print("DEBUG: torch imported", file=sys.stderr, flush=True)
+
+from viz import draw_graph, draw_masks
+print("DEBUG: viz imported (draw_masks available)", file=sys.stderr, flush=True)
+
 from models_new import Generator
+print("DEBUG: models_new imported", file=sys.stderr, flush=True)
+
 from PIL import Image
 import base64
 from io import BytesIO
 import json
-import sys
 import time
 from utils import fix_nodes, check_validity, get_nxgraph, get_mistakes, remove_multiple_components
 import logging
+
+print("DEBUG: All imports completed successfully", file=sys.stderr, flush=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,7 +83,18 @@ def parse_json(json_data):
 
     return np.array(nds), np.array(eds)
 
-def load_model(checkpoint='python/pretrained_new.pth'):
+def load_model(checkpoint=None):
+    # Use absolute path from environment or construct it relative to this script
+    if checkpoint is None:
+        checkpoint = os.environ.get('MODEL_PATH')
+        if not checkpoint:
+            # Fallback: construct path relative to this script
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            checkpoint = os.path.join(script_dir, 'pretrained_new.pth')
+    
+    print(f"DEBUG: Loading model from: {checkpoint}", file=sys.stderr, flush=True)
+    print(f"DEBUG: Model file exists: {os.path.exists(checkpoint)}", file=sys.stderr, flush=True)
+    
     model = Generator()
     model.load_state_dict(torch.load(checkpoint, map_location=torch.device('cpu')), strict=True)
     return model.eval()
@@ -125,27 +157,55 @@ def _infer(graph, model, prev_state=None, device='cpu'):
         raise
 
 def run_model(graph_data):
+    print("DEBUG: run_model() starting", file=sys.stderr, flush=True)
+    
     fp_graph = parse_json(graph_data)
+    print(f"DEBUG: Parsed graph, nodes shape={fp_graph[0].shape}, edges shape={fp_graph[1].shape}", file=sys.stderr, flush=True)
+    
     G_gt = get_nxgraph(fp_graph)
+    print(f"DEBUG: Created networkx graph", file=sys.stderr, flush=True)
 
     if len(fp_graph[0]) > 400 or len(fp_graph[1]) > 1200:
-        yield "Err"
-        return
+        print("ERROR: Graph too large", file=sys.stderr, flush=True)
+        return  # Changed from: yield "Err"
 
     start_time = time.time()
     device = torch.cuda.current_device() if torch.cuda.is_available() else 'cpu'
+    print(f"DEBUG: Device = {device}", file=sys.stderr, flush=True)
+    
     model = load_model().to(device)
+    print(f"DEBUG: Model loaded", file=sys.stderr, flush=True)
+    
     model.zero_grad(set_to_none=True)
 
     logging.info(f"load model: --- {time.time() - start_time} seconds ---")
 
     real_nodes = fp_graph[0]
     all_types = sorted(list(set(real_nodes)))
-    selected_types = [all_types[:k+1] for k in range(50)]
+    try:
+        MAX_TYPES = int(os.environ.get('MAX_TYPES', '1'))
+    except Exception:
+        MAX_TYPES = 1
+    # limit selected types to avoid long-running inner loops during dev
+    max_k = min(len(all_types), MAX_TYPES)
+    selected_types = [all_types[:k+1] for k in range(max_k)]
 
-    for k in range(5):
+    # Allow limiting number of generation attempts via env for faster dev iterations
+    try:
+        MAX_GEN = int(os.environ.get('MAX_GENERATIONS', '1'))
+    except Exception:
+        MAX_GEN = 1
+
+    print('PYTHON_START')
+    sys.stdout.flush()
+
+    for k in range(MAX_GEN):
+        print(f"DEBUG: Starting generation iteration {k}", file=sys.stderr, flush=True)
+        
         state = {'masks': None, 'fixed_nodes': []}
         masks = _infer(fp_graph, model, state, device)
+        print(f"DEBUG: Initial inference done, masks shape={masks.shape}", file=sys.stderr, flush=True)
+        
         _tracker = (get_mistakes(masks.copy(), real_nodes, G_gt), masks)
 
         for l, _types in enumerate(selected_types):
@@ -169,37 +229,70 @@ def run_model(graph_data):
                 break
 
         masks = _tracker[1]
-        masks, _ = remove_multiple_components(masks)
+        masks_list, _ = remove_multiple_components(masks)
+        # Convert list of masks back to tensor
+        masks = torch.tensor(np.array(masks_list), dtype=torch.float32)
+        print(f"DEBUG: After remove_multiple_components, masks shape={masks.shape}", file=sys.stderr, flush=True)
 
         logging.info(f"runtime: --- {time.time() - start_time} seconds ---")
-        logging.info("Using GPU:", torch.cuda.is_available(), "CUDNN Version:", torch.backends.cudnn.version())
-        logging.info("Search score {}".format(_tracker[0]))
+        logging.info(f"Using GPU: {torch.cuda.is_available()}, CUDNN Version: {torch.backends.cudnn.version()}")
+        logging.info(f"Search score {_tracker[0]}")
 
-        im_svg = draw_masks(masks.copy(), real_nodes, im_size=256)
-        yield '<stop>' + str(im_svg)
+        print(f"DEBUG: About to call draw_masks with masks shape={masks.shape}, real_nodes length={len(real_nodes)}", file=sys.stderr, flush=True)
+        # Convert tensor to numpy array for draw_masks
+        masks_np = masks.cpu().numpy()
+        im_svg = draw_masks(masks_np, real_nodes, im_size=256)
+        print(f"DEBUG: draw_masks returned, SVG length={len(str(im_svg))}", file=sys.stderr, flush=True)
+        
+        # Print SVG output so PythonShell captures it
+        print('<stop>' + str(im_svg))
+        sys.stdout.flush()
+        print(f"DEBUG: SVG printed and flushed", file=sys.stderr, flush=True)
+
+    logging.info(f"Finished run_model after {MAX_GEN} iterations")
+    print('PYTHON_DONE')
+    sys.stdout.flush()
+    print(f"DEBUG: run_model() completed", file=sys.stderr, flush=True)
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":
-    import sys
+    print("DEBUG: Entering __main__ block", file=sys.stderr, flush=True)
 
-    # Read JSON input from stdin (PythonShell sends it)
-    input_data = sys.stdin.read().strip()
-    if not input_data:
-        logging.info("No input data provided.")
+    # Expect JSON via CLI arg from bridge (do NOT fall back to stdin to avoid blocking)
+    if len(sys.argv) < 2 or not sys.argv[1].strip():
+        error_msg = "No input data provided via CLI argument."
+        logging.error(error_msg)
+        print(f"ERROR: {error_msg}", file=sys.stderr, flush=True)
         sys.exit(1)
+
+    input_str = sys.argv[1]
+    print(f"DEBUG: Received input via CLI arg, length={len(input_str)}", file=sys.stderr, flush=True)
 
     try:
-        graph_data = json.loads(input_data)
+        graph_data = json.loads(input_str)
+        print(f"DEBUG: Parsed JSON successfully, nodes={len(graph_data.get('nodes', {}))}, edges={len(graph_data.get('edges', []))}", file=sys.stderr, flush=True)
     except Exception as e:
-        logging.info(f"Failed to parse JSON: {e}")
+        error_msg = f"Failed to parse JSON: {e}"
+        logging.error(error_msg)
+        print(f"ERROR: {error_msg}", file=sys.stderr, flush=True)
         sys.exit(1)
 
-    logging.info(f"Input Graph Details:")
-    logging.info(f"Number of Nodes: ", graph_data)
+    logging.info(f"Input Graph Details: nodes={len(graph_data.get('nodes', {}))}, edges={len(graph_data.get('edges', []))}")
+    print(f"DEBUG: About to call run_model()", file=sys.stderr, flush=True)
 
-    # Call run_model on that data
-    for chunk in run_model(graph_data):
-        logging.info(chunk)
+    # Call run_model (it prints outputs directly)
+    try:
+        run_model(graph_data)
+        print(f"DEBUG: run_model() completed successfully", file=sys.stderr, flush=True)
+    except Exception as e:
+        error_msg = f"run_model() failed: {e}"
+        logging.error(error_msg)
+        print(f"ERROR: {error_msg}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
-    # Optionally: forcibly exit if the script doesn't close automatically.
+    # Exit cleanly
+    print(f"DEBUG: Exiting normally", file=sys.stderr, flush=True)
     sys.exit(0)

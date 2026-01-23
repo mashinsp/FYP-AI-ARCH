@@ -44,10 +44,15 @@ export default function ArchitecturePage() {
         throw new Error('Generation failed');
       }
       const json = await res.json();
+      console.log('API Response:', json);
+      console.log('Layouts received:', json.layouts);
+      console.log('Number of layouts:', json.layouts?.length);
+      
       if (json.error) {
         throw new Error(json.error);
       }
       if (Array.isArray(json.layouts)) {
+        console.log('Setting generated layouts with', json.layouts.length, 'items');
         setGeneratedLayouts(json.layouts);
         setToast({ message: 'Layout generated successfully!', type: 'success' });
       } else {
